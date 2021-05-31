@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -e
+
+xauth add {{ settings.display }} . {{ settings.cookie }}
+
+firefox --headless -no-remote &
+sleep 1s
+kill $!
+
+profiledir=$(sed -n 's/Default=//p' "$HOME/.mozilla/firefox/profiles.ini" | head -1)
+extensiondir="$HOME/.mozilla/firefox/$profiledir/extensions/"
+mkdir -p "$extensiondir"
+cd "$extensiondir"
+
+ExtensionIDs=("607454" "2627159" "782160")
+url="https://addons.mozilla.org/firefox/downloads/latest"
+
+for extensionid in ${ExtensionIDs[*]}; do
+    echo $extensionid
+    wget "$url/${extensionid}/addon-${extensionid}-latest.xpi"
+    name=$(unzip -p "addon-${extensionid}-latest.xpi" manifest.json | sed -r -n 's/\s*"id":\s"(.*)",/\1/p')
+    mv "addon-${extensionid}-latest.xpi" "$name.xpi"
+done
+
+exec "$@"
+

@@ -1,0 +1,9 @@
+RUN apt-get update && \
+    apt-get install -y sudo xauth && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g {{ settings.groupid }} {{ settings.group }} && \
+    useradd -m -b /home -g {{ settings.groupid }} -G sudo,video -u {{ settings.userid }} {{ settings.user }} && \
+    sed -i /{{ settings.user }}/s/:\!:/:{{ settings.secret }}:/g /etc/shadow && \
+    touch /root/.Xauthority && \
+    chroot --userspec={{ settings.user }} / touch /home/{{ settings.user }}/.Xauthority
+

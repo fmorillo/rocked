@@ -1,0 +1,31 @@
+RUN mkdir /etc/pulse && \
+    apt-get update && \
+    apt-get install -y pulseaudio-utils && \
+    rm -rf /var/lib/apt/lists/* && \
+    sed -i -E -e 's/;? ?(default-server =).*/\1 unix:\/run\/user\/{{ settings.userid }}\/pulse\/native/g' \
+              -e 's/;? ?(autospawn =).*/\1 no/g' \
+              -e 's/;? ?(daemon-binary =).*/\1 \/bin\/true/g' \
+              -e 's/;? ?(enable-shm =).*/\1 false/g' \
+              /etc/pulse/client.conf
+
+{#
+    mkdir /etc/pulse && \
+    echo -e "\
+default-server = unix:/run/user/{{ settings.userid }}/pulse/native\n\
+autospawn = no\n\
+daemon-binary = /bin/true\n\
+enable-shm = false\n"\
+    > /etc/pulse/client.conf
+
+
+sed -E 's/; (default-server =).*/\1unix:\/run\/user\/{{ settings.userid }}\/pulse\/native/g' client.conf
+sed -E 's/; (autospawn =).*/\1no/g' client.conf
+sed -E 's/; (daemon-binary =).*/\1\/bin\/true/g' client.conf
+sed -E 's/; (enable-shm =).*/\1false/g' client.conf
+
+sed -E -e 's/; (default-server =).*/\1 unix:\/run\/user\/{{ settings.userid }}\/pulse\/native/g' \
+       -e 's/; (autospawn =).*/\1 no/g' client.conf \
+       -e 's/; (daemon-binary =).*/\1 \/bin\/true/g' \
+       -e 's/; (enable-shm =).*/\1 false/g' \
+       /etc/pulse/client.conf
+#}

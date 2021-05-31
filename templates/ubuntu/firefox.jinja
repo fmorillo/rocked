@@ -1,0 +1,25 @@
+ARG EXTENSIONIDS="607454 2627159 782160"
+ARG URL="https://addons.mozilla.org/firefox/downloads/latest"
+
+RUN apt-get update && \
+    apt-get install -y firefox wget unzip libavcodec-extra libcanberra-gtk-module libcanberra-gtk3-module && \
+    rm -rf /var/lib/apt/lists/*
+
+USER {{ settings.user }}:{{ settings.group }}
+
+RUN firefox --headless -no-remote > /dev/null 2>&1 & \
+    sleep 1s && \
+    kill $! && \
+    profiledir=$(sed -n 's/Default=//p' "$HOME/.mozilla/firefox/profiles.ini" | head -1) && \
+    extensiondir="$HOME/.mozilla/firefox/$profiledir/extensions/" && \
+    mkdir -p "$extensiondir" && \
+    cd "$extensiondir" && \
+    for extensionid in $EXTENSIONIDS; do \
+        wget -q "$URL/${extensionid}/addon-${extensionid}-latest.xpi" && \
+        name=$(unzip -p "addon-${extensionid}-latest.xpi" manifest.json | sed -r -n 's/\s*"id":\s"(.*)",/\1/p') && \
+        echo -n "Install extension $extensionid as $name." && \
+        mv "addon-${extensionid}-latest.xpi" "$name.xpi" && \
+    ; done
+
+USER root:root
+

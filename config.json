@@ -1,0 +1,54 @@
+{
+    "settings": {
+        "timezone": null,
+        "locale": null,
+        "user": null,
+        "userid": null,
+        "group": null,
+        "groupid": null,
+        "configdir": null,
+        "volumedir": null,
+        "secret": null,
+        "gpu": null
+    },
+    "profiles": [
+        {
+            "name": "bash",
+            "distro": "ubuntu",
+            "baseimage": "ubuntu",
+            "templates": [
+                "locale",
+                "user",
+                "mesa",
+                "pulse",
+                "nano"
+            ],
+            "run": {
+                "command": "bash",
+                "volumes": [
+                    "{{ settings.volumedir + profile.name }}/share:/home/{{ settings.user }}/share"
+                ]
+            }
+        },
+        {
+            "name": "firefox",
+            "distro": "ubuntu",
+            "baseimage": "ubuntu:focal",
+            "templates": [
+                "locale",
+                "user",
+                "mesa",
+                "pulse",
+                "nano",
+                "firefox"
+            ],
+            "run": {
+                "command": "firefox",
+                "remove": true,
+                "volumes": [
+                    "{{ settings.volumedir + profile.name }}/Downloads:/home/{{ settings.user }}/Downloads"
+                ]
+            }
+        }
+    ]
+}

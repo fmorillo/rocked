@@ -1,0 +1,11 @@
+FROM {{ profile.baseimage }}
+
+COPY process_server.py /usr/local/bin/process_server.py
+COPY process_client.sh /usr/local/bin/process_client.sh
+COPY process_add.py /usr/local/bin/process_add.py
+COPY process_remove.py /usr/local/bin/process_remove.py
+
+RUN apt-get update && \
+    apt-get install -y python3 && \
+    rm -rf /var/lib/apt/lists/*
+
