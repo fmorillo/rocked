@@ -2,24 +2,16 @@ ARG EXTENSIONIDS="607454 2627159 782160"
 ARG URL="https://addons.mozilla.org/firefox/downloads/latest"
 
 RUN apt-get update && \
-    apt-get install -y firefox wget unzip libavcodec-extra libcanberra-gtk-module libcanberra-gtk3-module && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y firefox firefox-locale-{{ settings.locale.split('_')[0] }} libavcodec-extra libegl1 libpci3 libcanberra-gtk-module libcanberra-gtk3-module unzip wget && \
+    rm -rf /var/lib/apt/lists/* && \
+    echo "alias firefox='firefox --no-remote'" >> /home/{{ settings.user }}/.bashrc
 
-USER {{ settings.user }}:{{ settings.group }}
-
-RUN firefox --headless -no-remote > /dev/null 2>&1 & \
-    sleep 1s && \
-    kill $! && \
-    profiledir=$(sed -n 's/Default=//p' "$HOME/.mozilla/firefox/profiles.ini" | head -1) && \
-    extensiondir="$HOME/.mozilla/firefox/$profiledir/extensions/" && \
-    mkdir -p "$extensiondir" && \
-    cd "$extensiondir" && \
+RUN chroot --userspec={{ settings.user }} / mkdir /home/{{ settings.user }}/extensions && \
+    cd /home/{{ settings.user }}/extensions && \
     for extensionid in $EXTENSIONIDS; do \
         wget -q "$URL/${extensionid}/addon-${extensionid}-latest.xpi" && \
+        chown -c {{ settings.user }}:{{ settings.group }} "addon-${extensionid}-latest.xpi" && \
         name=$(unzip -p "addon-${extensionid}-latest.xpi" manifest.json | sed -r -n 's/\s*"id":\s"(.*)",/\1/p') && \
-        echo -n "Install extension $extensionid as $name." && \
-        mv "addon-${extensionid}-latest.xpi" "$name.xpi" && \
+        echo -n "Download extension $extensionid as $name." && \
+        mv "addon-${extensionid}-latest.xpi" "$name.xpi" \
     ; done
-
-USER root:root
-
