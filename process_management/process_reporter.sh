@@ -2,6 +2,6 @@
 set -e
 
 export DISPLAY="$1"
-process_add.py
+add_process.py
 "${@:2}" || true
-process_remove.py
+delete_process.py

@@ -136,13 +136,14 @@ class ContainerManager:
 
     def __copy_process_files(self):
         tmp_dir = self.settings['configdir'] + '/tmp/'
-        process_files = ('process_server.py', 'process_client.sh', 'process_add.py', 'process_remove.py')
+        process_dir = 'process_management/'
+        process_files = ('process_monitor.py', 'process_reporter.sh', 'add_process.py', 'delete_process.py')
 
         for process_file in process_files:
             if os.path.isfile(tmp_dir + process_file):
-                if filecmp.cmp(process_file, tmp_dir + process_file, shallow=True):
+                if filecmp.cmp(process_dir + process_file, tmp_dir + process_file, shallow=True):
                     continue
-            shutil.copy2(process_file, tmp_dir + process_file)
+            shutil.copy2(process_dir + process_file, tmp_dir + process_file)
 
 
     def exists_container(self,container_id):
@@ -164,7 +165,7 @@ class ContainerManager:
     def __merge_run(self, container_id):
         default_dict = {
             'image': self.image_name,
-            'command': 'process_server.py',
+            'command': 'process_monitor.py',
             'detach': True,
             'name': self.image_name + '_' + container_id,
             'tty': True
@@ -217,7 +218,7 @@ class ContainerManager:
         self.__add_xauth(container)
 
         docker_exec = jinja2.Template('docker exec -it -u {{ user }} {{ container }} {{ command }}')
-        exec_command = 'process_client.sh ' + self.settings['display']
+        exec_command = 'process_reporter.sh ' + self.settings['display']
         args = docker_exec.render(user=self.settings['user'], container=container.name, command=exec_command).split(' ')
 
         if not command:

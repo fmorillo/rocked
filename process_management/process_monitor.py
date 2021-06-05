@@ -48,10 +48,10 @@ class ProcessHandler(socketserver.BaseRequestHandler):
             if pid not in self.server.pids:
                 self.server.pids.append(pid)
             print('Add process: ' + str(pid) + '. New process list:' + str(self.server.pids))
-        elif op == b'r':
+        elif op == b'd':
             if pid in self.server.pids:
                 self.server.pids.remove(pid)
-            print('Remove process: ' + str(pid) + '. New process list: ' + str(self.server.pids))
+            print('Delete process: ' + str(pid) + '. New process list: ' + str(self.server.pids))
 
             if len(self.server.pids) == 0:
                 Thread(target=self.server.shutdown).start()
