@@ -6,6 +6,5 @@ COPY process_add.py /usr/local/bin/process_add.py
 COPY process_remove.py /usr/local/bin/process_remove.py
 
 RUN apt-get update && \
-    apt-get install -y python3 && \
+    apt-get install -y python3 python3-psutil && \
     rm -rf /var/lib/apt/lists/*
-
