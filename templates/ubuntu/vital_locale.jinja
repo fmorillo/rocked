@@ -6,3 +6,4 @@ RUN ln -snf /usr/share/zoneinfo/{{ settings.timezone }} /etc/localtime && echo {
     apt-get install -y locales tzdata && \
     rm -rf /var/lib/apt/lists/* && \
     localedef -i {{ settings.locale.partition('.')[0] }} -c -f UTF-8 -A /usr/share/locale/locale.alias {{ settings.locale }}
+

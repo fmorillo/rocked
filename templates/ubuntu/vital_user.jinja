@@ -5,3 +5,4 @@ RUN apt-get update && \
     useradd -m -b /home -g {{ settings.groupid }} -G sudo,video -u {{ settings.userid }} {{ settings.user }} && \
     touch /root/.Xauthority && \
     chroot --userspec={{ settings.user }} / touch /home/{{ settings.user }}/.Xauthority
+

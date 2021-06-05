@@ -15,3 +15,4 @@ RUN chroot --userspec={{ settings.user }} / mkdir /home/{{ settings.user }}/exte
         echo -n "Download extension $extensionid as $name." && \
         mv "addon-${extensionid}-latest.xpi" "$name.xpi" \
     ; done
+
