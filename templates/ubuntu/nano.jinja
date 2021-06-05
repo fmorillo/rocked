@@ -1,4 +1,11 @@
 RUN apt-get update && \
-    apt-get install -y nano && \
+    apt-get install -y nano wget unzip && \
     rm -rf /var/lib/apt/lists/*
+
+RUN cd /tmp && \
+    wget https://raw.githubusercontent.com/scopatz/nanorc/master/install.sh && \
+    HOME=/home/{{ settings.user }} eval 'chroot --userspec={{ settings.user }} / bash /tmp/install.sh' && \
+    rm install.sh && \
+    cd /home/{{ settings.user }}/.nano && \
+    rm $(ls | grep -v \.nanorc)
 
