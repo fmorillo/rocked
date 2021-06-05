@@ -7,5 +7,5 @@ RUN cd /tmp && \
     HOME=/home/{{ settings.user }} eval 'chroot --userspec={{ settings.user }} / bash /tmp/install.sh' && \
     rm install.sh && \
     cd /home/{{ settings.user }}/.nano && \
-    rm $(ls | grep -v \.nanorc)
+    rm nanorc $(ls | grep -E "\.x?sh")
 
