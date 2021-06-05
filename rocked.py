@@ -9,20 +9,16 @@ from config_loader import ConfigLoader
 from container_manager import ContainerManager
 
 
-class ProfileChoices:
-    def __init__(self):
-        self.choices = list()
-        with open('config.json', 'r') as json_file:
-            config = json.load(json_file)
-            profiles = config['profiles']
-            for profile in profiles:
-                self.choices.append(profile['name'])
+def generate_choices(config_path):
+    choices = list()
+    with open(config_path, 'r') as json_file:
+        config = json.load(json_file)
+        profiles = config['profiles']
+        for profile in profiles:
+            choices.append(profile['name'])
+    return choices
 
-    def __call__(self, **kwargs):
-        return self.choices
-
-
-def handle_args():
+def handle_args(profile_choices):
     parser = argparse.ArgumentParser(prog='rocked',
                                      usage='%(prog)s [options] command',
                                      description='Something')
@@ -33,25 +29,25 @@ def handle_args():
     open_parser = subparsers.add_parser('open', help='Run / Start container and exec into container')
     open_parser.add_argument('-i', '--id', default='0', help='ID of container')
     open_parser.add_argument('-n', '--new', action='store_true', help='New ID for container')
-    open_parser.add_argument('profile', help='Profile of container').completer=ProfileChoices()
+    open_parser.add_argument('profile', help='Profile of container', choices=profile_choices)
     open_parser.add_argument('command', default='', nargs='?', help='Command executed in container')
 
     close_parser = subparsers.add_parser('close', help='Stop container')
     close_parser.add_argument('-i', '--id', default='0', help='ID of container')
     close_parser.add_argument('-a', '--all', action='store_true', help='All containers')
-    close_parser.add_argument('profile', help='Profile of container').completer=ProfileChoices()
+    close_parser.add_argument('profile', help='Profile of container', choices=profile_choices)
 
     remove_parser = subparsers.add_parser('remove', help='Remove container and associated untangled image')
     remove_parser.add_argument('-i', '--id', default='0', help='ID of container')
     remove_parser.add_argument('-a', '--all', action='store_true', help='All containers')
-    remove_parser.add_argument('profile', help='Profile of container').completer=ProfileChoices()
+    remove_parser.add_argument('profile', help='Profile of container', choices=profile_choices)
 
     update_parser = subparsers.add_parser('update', help='Update image')
     update_parser.add_argument('-f', '--force', action='store_true', help='Force')
-    update_parser.add_argument('profile', help='Profile of container').completer=ProfileChoices()
+    update_parser.add_argument('profile', help='Profile of container', choices=profile_choices)
 
     destroy_parser = subparsers.add_parser('destroy', help='Remove all containers and images that belong to the profile')
-    destroy_parser.add_argument('profile', help='Profile of container').completer=ProfileChoices()
+    destroy_parser.add_argument('profile', help='Profile of container', choices=profile_choices)
 
     argcomplete.autocomplete(parser)
     args, unknown = parser.parse_known_args()
@@ -64,7 +60,10 @@ def handle_args():
     return args
 
 def main():
-    args = handle_args()
+    config_path = 'config.json'
+
+    profile_choices = generate_choices(config_path)
+    args = handle_args(profile_choices)
     if args is None:
         return
 
@@ -72,11 +71,11 @@ def main():
     if args.mode == 'setup':
         setup = True
 
-    with open('config.json', 'r') as json_file:
+    with open(config_path, 'r') as json_file:
         loader = ConfigLoader(json.load(json_file), setup=setup)
 
     if loader.is_updated:
-        with open('config.json', 'w') as json_file:
+        with open(config_path, 'w') as json_file:
             json.dump(loader.config, json_file, indent=4)
         print('Config updated!')
     else:
