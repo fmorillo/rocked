@@ -3,6 +3,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g {{ settings.groupid }} {{ settings.group }} && \
     useradd -m -b /home -g {{ settings.groupid }} -G sudo,video -u {{ settings.userid }} {{ settings.user }} && \
+    sed -i -E 's/#?(force_color_prompt=).*/\1yes/g' /home/{{ settings.user }}/.bashrc && \
     touch /root/.Xauthority && \
     chroot --userspec={{ settings.user }} / touch /home/{{ settings.user }}/.Xauthority
 
