@@ -17,10 +17,6 @@
             "distro": "ubuntu",
             "baseimage": "ubuntu",
             "templates": [
-                "locale",
-                "user",
-                "mesa",
-                "pulse",
                 "nano"
             ],
             "run": {
@@ -35,16 +31,13 @@
             "distro": "ubuntu",
             "baseimage": "ubuntu:focal",
             "templates": [
-                "locale",
-                "user",
-                "mesa",
-                "pulse",
                 "nano",
                 "firefox"
             ],
+            "entryscript": "firefox",
             "run": {
                 "command": "firefox",
-                "remove": true,
+                "remove": false,
                 "volumes": [
                     "{{ settings.volumedir + profile.name }}/Downloads:/home/{{ settings.user }}/Downloads"
                 ]

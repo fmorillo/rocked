@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import os
+import psutil
 import signal
 import socketserver
 from struct import unpack
 from threading import Thread
+from time import sleep
 
 
 class ProcessServer(socketserver.UnixDatagramServer):
@@ -12,16 +14,28 @@ class ProcessServer(socketserver.UnixDatagramServer):
     def server_activate(self):
         self.pids = list()
 
-    def relay_term(self, _signo, _stack_frame):
-        for pid in self.pids:
-            os.kill(pid, signal.SIGTERM)
+    def initiate_shutdown(self, _signo, _stack_frame):
+        self.__relay_signal(signal.SIGTERM)
+        Thread(target=self.__wait_and_sigkill).start()
 
-    def relay_kill(self, _signo, _stack_frame):
-        for pid in self.pids:
-            os.kill(pid, signal.SIGKILL)
+    def __wait_and_sigkill(self):
+        for i in range(500):
+            sleep(0.1)
+            if len(self.pids) == 0:
+                self.shutdown()
+                return
+        self.__relay_signal(signal.SIGKILL)
 
-    # def initiate_shutdown(self, _signo, _stack_frame):
-        # Thread(target=self.shutdown).start()
+    def __relay_signal(self, ipc_signal):
+        print('Relay ' + ' '.join(str(ipc_signal).split('s.')) + ' to ' + str(self.pids) + '.')
+        for pid in self.pids:
+            try:
+                parent = psutil.Process(pid)
+            except psutil.NoSuchProcess:
+                return
+            children = parent.children()
+            for child in children:
+                child.send_signal(ipc_signal)
 
 
 class ProcessHandler(socketserver.BaseRequestHandler):
@@ -33,11 +47,11 @@ class ProcessHandler(socketserver.BaseRequestHandler):
         if op == b'a':
             if pid not in self.server.pids:
                 self.server.pids.append(pid)
-            print('add', pid, self.server.pids)
+            print('Add process: ' + str(pid) + '. New process list:' + str(self.server.pids))
         elif op == b'r':
             if pid in self.server.pids:
                 self.server.pids.remove(pid)
-            print('del', pid, self.server.pids)
+            print('Remove process: ' + str(pid) + '. New process list: ' + str(self.server.pids))
 
             if len(self.server.pids) == 0:
                 Thread(target=self.server.shutdown).start()
@@ -45,13 +59,11 @@ class ProcessHandler(socketserver.BaseRequestHandler):
 
 def main():
     print('Wait for processes...')
-    if os.path.isfile('socket'):
+    if os.path.exists('socket'):
         os.remove('socket')
 
     with ProcessServer('socket', ProcessHandler) as server:
-        # signal.signal(signal.SIGTERM, server.initiate_shutdown)
-        signal.signal(signal.SIGTERM, server.relay_term)
-        # signal.signal(signal.SIGKILL, server.relay_kill)
+        signal.signal(signal.SIGTERM, server.initiate_shutdown)
         server.serve_forever()
 
     os.remove('socket')

@@ -5,7 +5,9 @@ import json
 import os
 import re
 import requests
+import shlex
 import shutil
+import socket
 import subprocess
 
 
@@ -14,12 +16,31 @@ class ContainerManager:
     def __init__(self, settings, profile):
         self.profile = profile
         self.settings = settings
-        self.settings['display'] = os.environ['DISPLAY']
-        self.settings['cookie'] = self.__get_xauth_cookie()
+
+        display = os.environ['DISPLAY']
+        display_split = display.split(':')
+
+        self.display_id = ''
+        self.hostip = ''
+        if display_split[0]:
+            self.display_id = display_split[1].split('.')[0]
+            self.hostip = self.__get_hostip()
+            display = self.hostip + ':' + display_split[1]
+
+        self.settings['display'] = display
+        self.settings['cookies'] = self.__get_xauth_cookie()
 
         self.image_name = 'rocked_' + profile['name']
-
         self.client = docker.from_env()
+
+
+    def __get_hostip(self):
+        # Connect to dummy IP to get the hostIP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("192.168.255.254", 49152))
+        host_ip = s.getsockname()[0]
+        s.close()
+        return host_ip
 
 
     def exists_image(self):
@@ -33,7 +54,7 @@ class ContainerManager:
     def get_image(self):
         if self.exists_image():
             return self.image_name
-        
+
         print('\nImage not found!')
 
         if self.build_image() is None:
@@ -50,13 +71,14 @@ class ContainerManager:
 
         self.__copy_process_files()
 
-        # TODO: make user template default.
-        templates = ['base'] + self.profile['templates']
+        templates = ['vital_base', 'vital_locale', 'vital_user', 'vital_pulse', 'vital_mesa'] + self.profile['templates']
         entryscript_path = ''
 
         if 'entryscript' in self.profile:
-            templates.append('entrypoint')
+            templates.append('vital_entrypoint')
             entryscript_path = self.__generate_entryscript()
+
+        templates.append('vital_password')
 
         docker_layers = list()
         for template in templates:
@@ -69,7 +91,7 @@ class ContainerManager:
         dockerfile_path = self.settings['configdir'] + 'tmp/Dockerfile'
         with open(dockerfile_path, 'w') as f:
             f.write('\n'.join(docker_layers))
-        
+
         log = self.client.api.build(path=self.settings['configdir'] + 'tmp/', tag='rocked_' + self.profile['name'], nocache=nocache, pull=pull, forcerm=True, decode=True)
 
         image_id = ''
@@ -91,11 +113,11 @@ class ContainerManager:
 
 
     def __generate_entryscript(self):
-        entrypoint_dir = self.settings['configdir'] + 'entryscripts/' + profile['distro'] + '/'
+        entrypoint_dir = self.settings['configdir'] + 'entryscripts/' + self.profile['distro'] + '/'
         jinja_loader = jinja2.FileSystemLoader(searchpath=entrypoint_dir)
         jinja_env = jinja2.Environment(loader=jinja_loader)
 
-        entryscript_template = jinja_env.get_template(profile['entryscript'] + '.sh.jinja')
+        entryscript_template = jinja_env.get_template(self.profile['entryscript'] + '.sh.jinja')
         entryscript = entryscript_template.render(settings=self.settings, profile=self.profile)
 
         entryscript_path = self.settings['configdir'] + 'tmp/docker-entrypoint.sh'
@@ -168,7 +190,7 @@ class ContainerManager:
         for key, value in self.profile['run'].items():
             if key in run_dict:
                 if isinstance(value, type(run_dict[key])):
-                    # TODO: Merge dicts? (for volumes etc.)
+                    # TODO: Maybe merge dicts? (For volumes.)
                     if isinstance(value, list):
                         run_dict[key] = run_dict[key] + value
                     else:
@@ -192,35 +214,44 @@ class ContainerManager:
         if container.status == 'exited':
             print('\nStarting container "' + container.name + '".')
             container.start()
-            self.__add_xauth(container)
-
-        exec_command = 'process_client.sh ' + command
-        if not command:
-            exec_command = 'process_client.sh ' + self.profile['run']['command']
+        self.__add_xauth(container)
 
         docker_exec = jinja2.Template('docker exec -it -u {{ user }} {{ container }} {{ command }}')
-        args = docker_exec.render(user=self.settings['user'],
-                                      container=container.name,
-                                      command=exec_command)
+        exec_command = 'process_client.sh ' + self.settings['display']
+        args = docker_exec.render(user=self.settings['user'], container=container.name, command=exec_command).split(' ')
 
-        print('\nExec container with command: "' + args + '".\n')
-        os.execv('/usr/bin/docker', args.split(' '))
+        if not command:
+            args += shlex.split(self.profile['run']['command'])
+        else:
+            args += command
+
+        print('\nExec into container with command: "' + str(args) + '".\n')
+        os.execv('/usr/bin/docker', args)
 
 
     def __get_xauth_cookie(self):
-        output = subprocess.run(('xauth', 'list'), capture_output=True)
+        output = subprocess.run(('xauth', 'list'), stdout=subprocess.PIPE)
         lines = output.stdout.decode('utf-8').split('\n')
 
+        cookies = list()
         for line in lines:
-            result = re.match('^' + os.uname()[1] + '.*MIT-MAGIC-COOKIE-1\s*(.*)', line)
+            result = re.match('^' + os.uname()[1] + '(.*:' + self.display_id + ')\s*MIT-MAGIC-COOKIE-1\s*(.*)', line)
             if result is not None:
-                return result.groups()[0]
+                cookies.append({'display': self.hostip + result.groups()[0], 'cookie': result.groups()[1]})
+        return cookies
 
 
     def __add_xauth(self, container):
         xauth_add = jinja2.Template('xauth add {{ display }} . {{ cookie }}')
-        xauth_command = xauth_add.render(display=self.settings['display'], cookie=self.settings['cookie'])
 
+        if self.hostip:
+            for entry in self.settings['cookies']:
+                xauth_command = xauth_add.render(display=entry['display'], cookie=entry['cookie'])
+                container.exec_run(xauth_command, user='root')
+                container.exec_run(xauth_command, user=self.settings['user'])
+            return
+
+        xauth_command = xauth_add.render(display=self.settings['display'], cookie=self.settings['cookies'][0]['cookie'])
         container.exec_run(xauth_command, user='root')
         container.exec_run(xauth_command, user=self.settings['user'])
 
@@ -234,8 +265,10 @@ class ContainerManager:
 
         if container.status == 'running':
             print('\nStopping container "' + container.name + '".')
-            container.stop(timeout=30)
+            container.stop(timeout=60)
             container.wait(condition='not-running')
+        else:
+            print('\nContainer "' + container.name + '" already stopped.')
 
 
     def remove_container(self, container_id):
@@ -245,9 +278,11 @@ class ContainerManager:
             print('\nContainer already removed!')
             return
 
+        image_id = container.image.id
         if container.status == 'exited':
             print('\nRemove container "' + container.name + '".')
             container.remove()
+            return container.image.id
 
 
     def update_image(self, force=False):
@@ -264,7 +299,7 @@ class ContainerManager:
             base_image_id_old = self.client.images.get(self.profile['baseimage']).id
         except docker.errors.ImageNotFound:
             print('\nBase image not found!')
-        
+
         image_id = self.build_image(nocache=force, pull=True)
         if image_id is None:
             return
@@ -277,30 +312,31 @@ class ContainerManager:
 
         if image_id != image_id_old:
             self.remove_image(image_id_old)
-
         return self.image_name
 
 
     def list_containers(self):
         containers = self.client.containers.list(all=True)
-
         related_container_ids = list()
-        related_image_ids = list()
+
         for container in containers:
             result = re.match('^' + self.image_name + '_([0-9]+)', container.name)
             if result is not None:
                 related_container_ids.append(result.groups()[0])
-                related_image_ids.append(container.image.id)
-
-        return related_container_ids, set(related_image_ids)
+        return related_container_ids
 
 
-    def remove_image(self, image_id):
+    def remove_image(self, image_id, only_untangled=False):
+        if image_id is None:
+            return
+
         try:
+            if only_untangled and not len(self.client.images.get(image_id).tags) == 0:
+                return
             print('\nRemove image "' + image_id + '"!')
             self.client.images.remove(image_id)
         except docker.errors.ImageNotFound:
             print('\nImage "' + image_id + '" already removed.')
         except docker.errors.APIError as api_error:
             result = re.match('.*Conflict \("(.*)"\)', str(api_error))
-            print('\n' + result.groups()[0])            
+            print('\n' + result.groups()[0])
